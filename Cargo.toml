@@ -1,0 +1,7 @@
+[package]
+name = "always-maximal"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+itertools = {version = "0.10"}

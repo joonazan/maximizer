@@ -22,6 +22,7 @@ fn main() {
 
     match degree {
         2 => active_side::<2>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
+        3 => active_side::<3>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
         4 => active_side::<4>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
         5 => active_side::<5>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
         _ => println!("Didn't compile version for degree {}", degree),
@@ -90,46 +91,73 @@ fn active_side<const D: usize>(passive: Vec<[Vec<u8>; D]>) {
 
     println!(
         "{}",
-        rec(
+        solve(
             Line {
                 sets: [all_allowed; D]
             },
-            all_bad.iter().cloned()
+            &all_bad
         )
-        .unwrap()
     );
 }
 
-fn rec<const D: usize>(
-    line: Line<D>,
-    mut bads: impl Iterator<Item = [u8; D]> + Clone,
-) -> Option<Line<D>> {
-    if let Some(bad) = bads.next() {
-        if bad
+fn solve<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
+    if bads.is_empty() {
+        return line;
+    }
+
+    struct Subtree<const D: usize> {
+        line: Line<D>,
+        bads_survived: usize,
+        next_set: usize,
+    }
+
+    let mut stack = vec![Subtree {
+        line,
+        bads_survived: 0,
+        next_set: 0,
+    }];
+
+    'outer: while let Some(mut state) = stack.pop() {
+        loop {
+            if state.next_set == D {
+                continue 'outer;
+            }
+
+            let b = bads[state.bads_survived][state.next_set];
+            let set = state.line.sets[state.next_set];
+            if set[b as usize] != (Allowed { forever: true })
+                && set.iter().filter(|x| **x != Forbidden).count() != 1
+            {
+                break;
+            }
+            state.next_set += 1;
+        }
+
+        stack.push(Subtree {
+            line: state.line.clone(),
+            bads_survived: state.bads_survived,
+            next_set: state.next_set + 1,
+        });
+
+        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set] as usize] = Forbidden;
+        for j in state.next_set + 1..D {
+            state.line.sets[j][bads[state.bads_survived][j] as usize] = Allowed { forever: true };
+        }
+        state.bads_survived += 1;
+        state.next_set = 0;
+
+        while bads[state.bads_survived]
             .iter()
-            .zip(&line.sets)
+            .zip(&state.line.sets)
             .any(|(b, set)| set[*b as usize] == Forbidden)
         {
-            rec(line, bads)
-        } else {
-            for (i, b) in bad.iter().enumerate() {
-                if line.sets[i][*b as usize] != (Allowed { forever: true })
-                    && line.sets[i].iter().filter(|x| **x != Forbidden).count() != 1
-                {
-                    let mut line = line.clone();
-                    line.sets[i][*b as usize] = Forbidden;
-                    for j in i + 1..D {
-                        line.sets[j][bad[j] as usize] = Allowed { forever: true };
-                    }
-
-                    if let Some(res) = rec(line, bads.clone()) {
-                        return Some(res);
-                    }
-                }
+            state.bads_survived += 1;
+            if state.bads_survived == bads.len() {
+                return state.line;
             }
-            None
         }
-    } else {
-        Some(line)
+
+        stack.push(state);
     }
+    unreachable!()
 }

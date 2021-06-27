@@ -89,18 +89,13 @@ fn active_side<const D: usize>(passive: Vec<[Vec<u8>; D]>) {
         all_allowed[x as usize] = Allowed { forever: false };
     }
 
-    println!(
-        "{}",
-        solve(
-            Line {
-                sets: [all_allowed; D]
-            },
-            &all_bad
-        )
-    );
+    let all_line = Line {
+        sets: [all_allowed; D],
+    };
+    println!("{}", find_one_line(all_line, &all_bad));
 }
 
-fn solve<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
+fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
     if bads.is_empty() {
         return line;
     }
@@ -139,12 +134,17 @@ fn solve<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
             next_set: state.next_set + 1,
         });
 
-        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set] as usize] = Forbidden;
+        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set] as usize] =
+            Forbidden;
         for j in state.next_set + 1..D {
             state.line.sets[j][bads[state.bads_survived][j] as usize] = Allowed { forever: true };
         }
         state.bads_survived += 1;
         state.next_set = 0;
+
+        if state.bads_survived == bads.len() {
+            return state.line;
+        }
 
         while bads[state.bads_survived]
             .iter()
@@ -159,5 +159,6 @@ fn solve<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
 
         stack.push(state);
     }
+
     unreachable!()
 }

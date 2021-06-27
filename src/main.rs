@@ -148,7 +148,10 @@ fn active_side<const D: usize>(passive: Vec<[Vec<u8>; D]>) {
             .unwrap(),
         cardinality: D * alphabet.len(),
     };
-    println!("{}", find_one_line(all_line, &all_bad));
+
+    for line in bfs(all_line, &all_bad) {
+        println!("{}", line);
+    }
 }
 
 fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
@@ -217,4 +220,45 @@ fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
     }
 
     unreachable!()
+}
+
+fn bfs<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Vec<Line<D>> {
+    let mut lines = vec![line];
+
+    for bad in bads {
+        let mut new_lines = vec![];
+        for line in lines {
+            if bad
+                .iter()
+                .zip(&line.sets)
+                .any(|(b, set)| set[*b] == Forbidden)
+            {
+                new_lines.push(line);
+            } else {
+                let adds = (0..D)
+                    .filter(|i| {
+                        line.sets[*i].cardinality > 1
+                            && line.sets[*i][bad[*i]] != (Allowed { forever: true })
+                    })
+                    .map(|i| {
+                        let mut line = line.clone();
+                        line.sets[i][bad[i]] = Forbidden;
+                        line.sets[i].cardinality -= 1;
+                        line.cardinality -= 1;
+
+                        for j in i + 1..D {
+                            line.sets[j][bad[j]] = Allowed { forever: true };
+                        }
+                        line
+                    })
+                    .filter(|x| !new_lines.iter().any(|nl| nl.contains(x)))
+                    .collect::<Vec<_>>();
+
+                new_lines.extend(adds);
+            }
+        }
+        lines = new_lines;
+    }
+
+    lines
 }

@@ -29,7 +29,7 @@ fn main() {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Debug)]
 enum Status {
     Allowed { forever: bool },
     Forbidden,
@@ -38,19 +38,66 @@ use Status::*;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 struct Line<const D: usize> {
-    sets: [[Status; 256]; D],
+    sets: [Set; D],
+    cardinality: usize,
 }
 
 impl<const D: usize> std::fmt::Display for Line<D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for set in &self.sets {
             let bytes = (0..256)
-                .filter(|i| set[*i] != Forbidden)
+                .filter(|i| set.contents[*i] != Forbidden)
                 .map(|x| x as u8)
                 .collect::<Vec<_>>();
             write!(f, "{} ", String::from_utf8(bytes).unwrap())?
         }
         Ok(())
+    }
+}
+
+impl<const D: usize> Line<D> {
+    fn contains(&self, other: &Line<D>) -> bool {
+        if other.cardinality > self.cardinality {
+            false
+        } else {
+            self.sets
+                .iter()
+                .zip(&other.sets)
+                .all(|(mine, his)| mine.contains(his))
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+struct Set {
+    contents: [Status; 256],
+    cardinality: usize,
+}
+
+impl std::ops::Index<u8> for Set {
+    type Output = Status;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        &self.contents[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<u8> for Set {
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        &mut self.contents[index as usize]
+    }
+}
+
+impl Set {
+    fn contains(&self, other: &Set) -> bool {
+        if other.cardinality > self.cardinality {
+            false
+        } else {
+            self.contents
+                .iter()
+                .zip(&other.contents)
+                .all(|(mine, his)| *mine != Forbidden || *his == Forbidden)
+        }
     }
 }
 
@@ -84,13 +131,22 @@ fn active_side<const D: usize>(passive: Vec<[Vec<u8>; D]>) {
         .collect::<Vec<_>>();
     dbg!("bad computed");
 
-    let mut all_allowed = [Forbidden; 256];
-    for x in alphabet {
-        all_allowed[x as usize] = Allowed { forever: false };
+    let mut all_allowed = Set {
+        contents: [Forbidden; 256],
+        cardinality: alphabet.len(),
+    };
+
+    for x in &alphabet {
+        all_allowed[*x] = Allowed { forever: false };
     }
 
     let all_line = Line {
-        sets: [all_allowed; D],
+        sets: (0..D)
+            .map(|_| all_allowed.clone())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap(),
+        cardinality: D * alphabet.len(),
     };
     println!("{}", find_one_line(all_line, &all_bad));
 }
@@ -119,10 +175,8 @@ fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
             }
 
             let b = bads[state.bads_survived][state.next_set];
-            let set = state.line.sets[state.next_set];
-            if set[b as usize] != (Allowed { forever: true })
-                && set.iter().filter(|x| **x != Forbidden).count() != 1
-            {
+            let set = &state.line.sets[state.next_set];
+            if set[b] != (Allowed { forever: true }) && set.cardinality != 1 {
                 break;
             }
             state.next_set += 1;
@@ -134,10 +188,12 @@ fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
             next_set: state.next_set + 1,
         });
 
-        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set] as usize] =
-            Forbidden;
+        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set]] = Forbidden;
+        state.line.sets[state.next_set].cardinality -= 1;
+        state.line.cardinality -= 1;
+
         for j in state.next_set + 1..D {
-            state.line.sets[j][bads[state.bads_survived][j] as usize] = Allowed { forever: true };
+            state.line.sets[j][bads[state.bads_survived][j]] = Allowed { forever: true };
         }
         state.bads_survived += 1;
         state.next_set = 0;
@@ -149,7 +205,7 @@ fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
         while bads[state.bads_survived]
             .iter()
             .zip(&state.line.sets)
-            .any(|(b, set)| set[*b as usize] == Forbidden)
+            .any(|(b, set)| set[*b] == Forbidden)
         {
             state.bads_survived += 1;
             if state.bads_survived == bads.len() {

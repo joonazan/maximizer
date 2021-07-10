@@ -1,5 +1,13 @@
+#![feature(const_evaluatable_checked)]
+#![feature(const_generics)]
+
+mod bitarray;
+mod line;
+
+use bitarray::BitArray;
 use itertools::Itertools;
-use std::collections::HashSet;
+use line::Line;
+use std::collections::{BTreeSet, VecDeque};
 use std::convert::TryInto;
 use std::fs::File;
 use std::io::prelude::*;
@@ -20,245 +28,111 @@ fn main() {
         .collect();
     let degree = passive[0].len();
 
-    match degree {
-        2 => active_side::<2>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
-        3 => active_side::<3>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
-        4 => active_side::<4>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
-        5 => active_side::<5>(passive.into_iter().map(|x| x.try_into().unwrap()).collect()),
-        _ => println!("Didn't compile version for degree {}", degree),
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Debug)]
-enum Status {
-    Allowed { forever: bool },
-    Forbidden,
-}
-use Status::*;
-
-#[derive(Clone, Eq, PartialEq, Hash)]
-struct Line<const D: usize> {
-    sets: [Set; D],
-    cardinality: usize,
-}
-
-impl<const D: usize> std::fmt::Display for Line<D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for set in &self.sets {
-            let bytes = (0..256)
-                .filter(|i| set.contents[*i] != Forbidden)
-                .map(|x| x as u8)
-                .collect::<Vec<_>>();
-            write!(f, "{} ", String::from_utf8(bytes).unwrap())?
-        }
-        Ok(())
-    }
-}
-
-impl<const D: usize> Line<D> {
-    fn contains(&self, other: &Line<D>) -> bool {
-        if other.cardinality > self.cardinality {
-            false
-        } else {
-            self.sets
-                .iter()
-                .zip(&other.sets)
-                .all(|(mine, his)| mine.contains(his))
-        }
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-struct Set {
-    contents: [Status; 256],
-    cardinality: usize,
-}
-
-impl std::ops::Index<u8> for Set {
-    type Output = Status;
-
-    fn index(&self, index: u8) -> &Self::Output {
-        &self.contents[index as usize]
-    }
-}
-
-impl std::ops::IndexMut<u8> for Set {
-    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
-        &mut self.contents[index as usize]
-    }
-}
-
-impl Set {
-    fn contains(&self, other: &Set) -> bool {
-        if other.cardinality > self.cardinality {
-            false
-        } else {
-            self.contents
-                .iter()
-                .zip(&other.contents)
-                .all(|(mine, his)| *mine != Forbidden || *his == Forbidden)
-        }
-    }
-}
-
-fn active_side<const D: usize>(passive: Vec<[Vec<u8>; D]>) {
     let alphabet: Vec<u8> = passive
         .iter()
-        .flatten()
-        .flatten()
-        .collect::<HashSet<_>>()
+        .flat_map(|line| line.iter().flat_map(|set| set.iter()))
+        .collect::<BTreeSet<_>>()
         .into_iter()
         .cloned()
         .collect();
 
-    let all_permutations: HashSet<[u8; D]> = passive
+    if bitarray::cells_needed(alphabet.len()) != 1 {
+        panic!("Alphabets that big are currently unsupported.")
+    }
+
+    let passive: Vec<Vec<BitArray<1>>> = passive
         .iter()
-        .flat_map(|line| {
+        .map(|line| {
             line.iter()
-                .cloned()
-                .multi_cartesian_product()
-                .flat_map(|x| x.into_iter().permutations(D))
+                .map(|s| {
+                    let mut out = bitarray::zero();
+                    for x in s {
+                        // SAFETY: always found because `alphabet` has every symbol in `passive`
+                        out.set(alphabet.binary_search(x).unwrap());
+                    }
+                    out
+                })
+                .collect()
         })
-        .map(|x| x.try_into().unwrap())
         .collect();
-    dbg!("perms done");
 
-    let all_bad = vec![alphabet.clone(); D]
+    match degree {
+        2 => active_side::<1, 2>(passive, alphabet),
+        3 => active_side::<1, 3>(passive, alphabet),
+        4 => active_side::<1, 4>(passive, alphabet),
+        5 => active_side::<1, 5>(passive, alphabet),
+        _ => println!("Didn't compile version for degree {}", degree),
+    }
+}
+
+fn active_side<const C: usize, const D: usize>(passive: Vec<Vec<BitArray<C>>>, alphabet: Vec<u8>)
+where
+    [(); D - 1]: Sized,
+{
+    let mut todo: VecDeque<Line<C, D>> = passive
         .into_iter()
-        .multi_cartesian_product()
-        .map(|x| x.try_into().unwrap())
-        .filter(|x: &[u8; D]| !all_permutations.contains(x))
-        .collect::<Vec<_>>();
-    dbg!("bad computed");
+        .map(|line| Line(line.try_into().unwrap()))
+        .collect();
+    let mut done: Vec<Line<C, D>> = vec![];
 
-    let mut all_allowed = Set {
-        contents: [Forbidden; 256],
-        cardinality: alphabet.len(),
-    };
-
-    for x in &alphabet {
-        all_allowed[*x] = Allowed { forever: false };
-    }
-
-    let all_line = Line {
-        sets: (0..D)
-            .map(|_| all_allowed.clone())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        cardinality: D * alphabet.len(),
-    };
-
-    for line in bfs(all_line, &all_bad) {
-        println!("{}", line);
-    }
-}
-
-fn find_one_line<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Line<D> {
-    if bads.is_empty() {
-        return line;
-    }
-
-    struct Subtree<const D: usize> {
-        line: Line<D>,
-        bads_survived: usize,
-        next_set: usize,
-    }
-
-    let mut stack = vec![Subtree {
-        line,
-        bads_survived: 0,
-        next_set: 0,
-    }];
-
-    'outer: while let Some(mut state) = stack.pop() {
-        loop {
-            if state.next_set == D {
-                continue 'outer;
-            }
-
-            let b = bads[state.bads_survived][state.next_set];
-            let set = &state.line.sets[state.next_set];
-            if set[b] != (Allowed { forever: true }) && set.cardinality != 1 {
-                break;
-            }
-            state.next_set += 1;
-        }
-
-        stack.push(Subtree {
-            line: state.line.clone(),
-            bads_survived: state.bads_survived,
-            next_set: state.next_set + 1,
-        });
-
-        state.line.sets[state.next_set][bads[state.bads_survived][state.next_set]] = Forbidden;
-        state.line.sets[state.next_set].cardinality -= 1;
-        state.line.cardinality -= 1;
-
-        for j in state.next_set + 1..D {
-            state.line.sets[j][bads[state.bads_survived][j]] = Allowed { forever: true };
-        }
-        state.bads_survived += 1;
-        state.next_set = 0;
-
-        if state.bads_survived == bads.len() {
-            return state.line;
-        }
-
-        while bads[state.bads_survived]
+    while let Some(line) = todo.pop_front() {
+        let perms: Vec<Line<C, D>> = line
+            .0
             .iter()
-            .zip(&state.line.sets)
-            .any(|(b, set)| set[*b] == Forbidden)
-        {
-            state.bads_survived += 1;
-            if state.bads_survived == bads.len() {
-                return state.line;
-            }
-        }
+            .cloned()
+            .permutations(D)
+            .map(|x| Line(x.try_into().unwrap()))
+            .collect();
 
-        stack.push(state);
-    }
-
-    unreachable!()
-}
-
-fn bfs<const D: usize>(line: Line<D>, bads: &[[u8; D]]) -> Vec<Line<D>> {
-    let mut lines = vec![line];
-
-    for bad in bads {
-        let mut new_lines = vec![];
-        for line in lines {
-            if bad
-                .iter()
-                .zip(&line.sets)
-                .any(|(b, set)| set[*b] == Forbidden)
-            {
-                new_lines.push(line);
-            } else {
-                let adds = (0..D)
-                    .filter(|i| {
-                        line.sets[*i].cardinality > 1
-                            && line.sets[*i][bad[*i]] != (Allowed { forever: true })
-                    })
-                    .map(|i| {
-                        let mut line = line.clone();
-                        line.sets[i][bad[i]] = Forbidden;
-                        line.sets[i].cardinality -= 1;
-                        line.cardinality -= 1;
-
-                        for j in i + 1..D {
-                            line.sets[j][bad[j]] = Allowed { forever: true };
+        for line2 in &done {
+            for p in &perms {
+                'new_lines: for mut new in line2.combine_with(&p) {
+                    for x in done.iter().chain(&todo) {
+                        if new.maximize_with(x) {
+                            continue 'new_lines;
                         }
-                        line
-                    })
-                    .filter(|x| !new_lines.iter().any(|nl| nl.contains(x)))
-                    .collect::<Vec<_>>();
+                    }
 
-                new_lines.extend(adds);
+                    todo.push_back(new);
+                }
             }
         }
-        lines = new_lines;
+
+        // TODO do this earlier, before pushing into todo
+        // That is a bit harder because done is in use at that point
+        let mut i = 0;
+        while i < done.len() {
+            if done[i].maximize_with(&line) {
+                done.swap_remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        let mut i = 0;
+        while i < todo.len() {
+            if todo[i].maximize_with(&line) {
+                todo.swap_remove_back(i);
+            } else {
+                i += 1;
+            }
+        }
+
+        done.push(line);
     }
 
-    lines
+    let show_set = |set: &BitArray<C>| {
+        String::from_utf8(
+            alphabet
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| set.get(*i))
+                .map(|(_, x)| *x)
+                .collect(),
+        )
+        .unwrap()
+    };
+
+    for line in done.iter() {
+        println!("{}", line.0.iter().map(show_set).join(" "));
+    }
 }

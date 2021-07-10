@@ -5,3 +5,7 @@ edition = "2018"
 
 [dependencies]
 itertools = {version = "0.10"}
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"

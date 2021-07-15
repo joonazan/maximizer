@@ -119,17 +119,22 @@ impl<const C: usize, const D: usize> PartialOrd<Self> for Line<C, D> {
     }
 
     fn gt(&self, other: &Self) -> bool {
-        let mut stack = vec![(0, [false; D])];
+        let mut stack = vec![(0, [false; D], false)];
 
-        while let Some((i, used)) = stack.pop() {
+        while let Some((i, used, is_greater)) = stack.pop() {
             for (j, o) in other.0.iter().enumerate() {
                 if !used[j] && *o & self.0[i] == *o {
+                    let is_greater = is_greater || self.0[i] & !*o != zero();
                     if i == D - 1 {
-                        return true;
+                        if is_greater {
+                            return true;
+                        } else {
+                            continue;
+                        }
                     }
                     let mut used2 = used.clone();
                     used2[j] = true;
-                    stack.push((i + 1, used2));
+                    stack.push((i + 1, used2, is_greater));
                 }
             }
         }

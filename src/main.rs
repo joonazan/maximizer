@@ -94,6 +94,8 @@ where
     let mut done: Vec<Line<C, D>> = vec![];
 
     while let Some(line) = todo.pop_front() {
+        done.push(line.clone());
+
         let perms: Vec<Line<C, D>> = line
             .0
             .iter()
@@ -102,40 +104,53 @@ where
             .map(|x| Line(x.try_into().unwrap()))
             .collect();
 
+        let mut new_lines = vec![];
+
         for line2 in &done {
             for p in &perms {
                 'new_lines: for mut new in line2.combine_with(&p) {
-                    for x in done.iter().chain(&todo) {
+                    for x in done.iter().chain(&todo).rev() {
                         if new.maximize_with(x) {
                             continue 'new_lines;
                         }
                     }
 
-                    todo.push_back(new);
+                    println!("found: {} via {}", show_line(&new), show_line(&line));
+                    todo.push_back(new.clone());
+                    new_lines.push(new);
                 }
             }
         }
 
-        // TODO do this earlier, before pushing into todo
-        // That is a bit harder because done is in use at that point
-        let mut i = 0;
-        while i < done.len() {
-            if done[i].maximize_with(&line) {
-                done.swap_remove(i);
-            } else {
-                i += 1;
+        // Remove lines obsoleted by newly found ones
+        for line in new_lines.into_iter() {
+            let mut i = 0;
+            while i < done.len() {
+                if done[i] < line {
+                    println!(
+                        "removed from done: {} < {}",
+                        show_line(&done[i]),
+                        show_line(&line)
+                    );
+                    done.swap_remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+            let mut i = 0;
+            while i < todo.len() {
+                if todo[i] < line {
+                    println!(
+                        "removed from todo: {} < {}",
+                        show_line(&todo[i]),
+                        show_line(&line)
+                    );
+                    todo.swap_remove_back(i);
+                } else {
+                    i += 1;
+                }
             }
         }
-        let mut i = 0;
-        while i < todo.len() {
-            if todo[i].maximize_with(&line) {
-                todo.swap_remove_back(i);
-            } else {
-                i += 1;
-            }
-        }
-
-        done.push(line);
     }
 
     let mut strings = done.iter().map(show_line).collect::<Vec<_>>();

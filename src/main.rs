@@ -69,6 +69,24 @@ fn active_side<const C: usize, const D: usize>(passive: Vec<Vec<BitArray<C>>>, a
 where
     [(); D - 1]: Sized,
 {
+    let show_set = |set: &BitArray<C>| {
+        String::from_utf8(
+            alphabet
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| set.get(*i))
+                .map(|(_, x)| *x)
+                .collect(),
+        )
+        .unwrap()
+    };
+
+    let show_line = |line: &Line<C, D>| {
+        let mut tmp = line.0.iter().map(show_set).collect::<Vec<_>>();
+        tmp.sort();
+        tmp.join(" ")
+    };
+
     let mut todo: VecDeque<Line<C, D>> = passive
         .into_iter()
         .map(|line| Line(line.try_into().unwrap()))
@@ -120,19 +138,7 @@ where
         done.push(line);
     }
 
-    let show_set = |set: &BitArray<C>| {
-        String::from_utf8(
-            alphabet
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| set.get(*i))
-                .map(|(_, x)| *x)
-                .collect(),
-        )
-        .unwrap()
-    };
-
-    for line in done.iter() {
-        println!("{}", line.0.iter().map(show_set).join(" "));
-    }
+    let mut strings = done.iter().map(show_line).collect::<Vec<_>>();
+    strings.sort();
+    println!("{}", strings.join("\n"));
 }

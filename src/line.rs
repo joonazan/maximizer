@@ -28,7 +28,11 @@ where
             } else {
                 let mut x = intersections.clone();
                 x[i] = union;
-                Some(Self(x))
+                if x.iter().any(|s| *s == zero()) {
+                    None
+                } else {
+                    Some(Self(x))
+                }
             }
         })
     }

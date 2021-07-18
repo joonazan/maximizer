@@ -104,11 +104,11 @@ where
             .map(|x| Line(x.try_into().unwrap()))
             .collect();
 
-        let mut new_lines = vec![];
-
-        for line2 in &done {
+        let mut i = 0;
+        while i < done.len() {
+            let mut next_i = i + 1;
             for p in &perms {
-                'new_lines: for mut new in line2.combine_with(&p) {
+                'new_lines: for mut new in done[i].combine_with(&p) {
                     for x in done.iter().chain(&todo).rev() {
                         if new.maximize_with(x) {
                             continue 'new_lines;
@@ -116,40 +116,47 @@ where
                     }
 
                     println!("found: {} via {}", show_line(&new), show_line(&line));
-                    todo.push_back(new.clone());
-                    new_lines.push(new);
-                }
-            }
-        }
 
-        // Remove lines obsoleted by newly found ones
-        for line in new_lines.into_iter() {
-            let mut i = 0;
-            while i < done.len() {
-                if done[i] < line {
-                    println!(
-                        "removed from done: {} < {}",
-                        show_line(&done[i]),
-                        show_line(&line)
-                    );
-                    done.swap_remove(i);
-                } else {
-                    i += 1;
+                    // Remove lines obsoleted by newly found ones
+                    {
+                        let mut i = 0;
+                        while i < todo.len() {
+                            if todo[i] < new {
+                                println!(
+                                    "removed from todo: {} < {}",
+                                    show_line(&todo[i]),
+                                    show_line(&new)
+                                );
+                                todo.swap_remove_back(i);
+                            } else {
+                                i += 1;
+                            }
+                        }
+                    }
+
+                    let mut write = 0;
+                    for j in 0..done.len() {
+                        if done[j] < new {
+                            println!(
+                                "removed from done: {} < {}",
+                                show_line(&done[j]),
+                                show_line(&new)
+                            );
+                            if j < next_i {
+                                next_i -= 1;
+                            }
+                        } else {
+                            // TODO Unnecessary clone here.
+                            done[write] = done[j].clone();
+                            write += 1;
+                        }
+                    }
+                    done.truncate(write);
+
+                    todo.push_back(new);
                 }
             }
-            let mut i = 0;
-            while i < todo.len() {
-                if todo[i] < line {
-                    println!(
-                        "removed from todo: {} < {}",
-                        show_line(&todo[i]),
-                        show_line(&line)
-                    );
-                    todo.swap_remove_back(i);
-                } else {
-                    i += 1;
-                }
-            }
+            i = next_i;
         }
     }
 

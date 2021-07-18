@@ -1,51 +1,37 @@
 use crate::line::Line;
 use std::collections::VecDeque;
-
-#[derive(Copy, Clone)]
-pub struct StaticVec<const D: usize> {
-    pub len: usize,
-    pub content: [usize; D],
-}
-
-impl<const D: usize> StaticVec<D> {
-    fn new() -> Self {
-        Self {
-            len: 0,
-            content: [0; D],
-        }
-    }
-
-    fn push(&mut self, x: usize) {
-        self.content[self.len] = x;
-        self.len += 1;
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &usize> {
-        self.content[..self.len].iter()
-    }
-}
+use std::convert::TryInto;
 
 pub fn is_inferior_to<const C: usize, const D: usize>(
     side_a: &Line<C, D>,
     side_b: &Line<C, D>,
 ) -> bool {
-    let mut neighbors_a: [StaticVec<D>; D] = [StaticVec::new(); D];
-    for i in 0..D {
-        for j in 0..D {
-            if side_a.0[i] & side_b.0[j] == side_a.0[i] {
-                neighbors_a[i].push(j);
+    let mut storage = vec![];
+    let neighbors_a: [&[usize]; D] = (0..D)
+        .map(|i| {
+            let start = storage.len();
+            for j in 0..D {
+                if side_a.0[i] & side_b.0[j] == side_a.0[i] {
+                    storage.push(j);
+                }
             }
-        }
-    }
+            start..storage.len()
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|x| &storage[x])
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
 
     maximum_matching_simple(&neighbors_a)
 }
 
-pub fn maximum_matching_simple<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool {
+pub fn maximum_matching_simple<const D: usize>(neighbors_a: &[&[usize]; D]) -> bool {
     let mut stack = vec![(0, [false; D])];
 
     while let Some((i, used)) = stack.pop() {
-        for n in neighbors_a[i].iter() {
+        for n in neighbors_a[i] {
             if !used[*n] {
                 if i == D - 1 {
                     return true;
@@ -59,7 +45,7 @@ pub fn maximum_matching_simple<const D: usize>(neighbors_a: &[StaticVec<D>; D]) 
     false
 }
 
-pub fn maximum_matching<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool {
+pub fn maximum_matching<const D: usize>(neighbors_a: &[&[usize]; D]) -> bool {
     let mut pair_for_b = [None; D];
     let mut pair_for_a = [0; D];
 
@@ -79,7 +65,7 @@ pub fn maximum_matching<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool
                 }
                 layer_a[*a] = Some(layer);
 
-                for b in neighbors_a[*a].iter() {
+                for b in neighbors_a[*a] {
                     if let Some(ai2) = pair_for_b[*b] {
                         next.push(ai2);
                     } else {
@@ -117,7 +103,7 @@ pub fn maximum_matching<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool
                         current_path.push(a);
                         stack.push(Backtrack);
 
-                        for b in neighbors_a[a].iter() {
+                        for b in neighbors_a[a] {
                             if let Some(a2) = pair_for_b[*b] {
                                 if layer_a[*b] == Some(layer_a[a].unwrap() + 1) {
                                     stack.push(Try(a2));

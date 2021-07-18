@@ -38,7 +38,25 @@ pub fn is_inferior_to<const C: usize, const D: usize>(
         }
     }
 
-    maximum_matching(&neighbors_a)
+    maximum_matching_simple(&neighbors_a)
+}
+
+pub fn maximum_matching_simple<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool {
+    let mut stack = vec![(0, [false; D])];
+
+    while let Some((i, used)) = stack.pop() {
+        for n in neighbors_a[i].iter() {
+            if !used[*n] {
+                if i == D - 1 {
+                    return true;
+                }
+                let mut used2 = used.clone();
+                used2[*n] = true;
+                stack.push((i + 1, used2));
+            }
+        }
+    }
+    false
 }
 
 pub fn maximum_matching<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool {

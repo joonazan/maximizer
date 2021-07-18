@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use maximizer::line_superiority::{maximum_matching, StaticVec};
+use maximizer::line_superiority::{maximum_matching, maximum_matching_simple, StaticVec};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let neighbors: [StaticVec<4>; 4] = [
@@ -23,6 +23,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("Maximum matching 4", |b| {
         b.iter(|| maximum_matching(black_box(&neighbors)))
+    });
+    c.bench_function("Maximum matching simple 4", |b| {
+        b.iter(|| maximum_matching_simple(black_box(&neighbors)))
     });
 }
 

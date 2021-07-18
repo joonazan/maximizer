@@ -2,9 +2,9 @@ use crate::line::Line;
 use std::collections::VecDeque;
 
 #[derive(Copy, Clone)]
-struct StaticVec<const D: usize> {
-    len: usize,
-    content: [usize; D],
+pub struct StaticVec<const D: usize> {
+    pub len: usize,
+    pub content: [usize; D],
 }
 
 impl<const D: usize> StaticVec<D> {
@@ -30,16 +30,18 @@ pub fn is_inferior_to<const C: usize, const D: usize>(
     side_b: &Line<C, D>,
 ) -> bool {
     let mut neighbors_a: [StaticVec<D>; D] = [StaticVec::new(); D];
-    let mut neighbors_b: [StaticVec<D>; D] = [StaticVec::new(); D];
     for i in 0..D {
         for j in 0..D {
             if side_a.0[i] & side_b.0[j] == side_a.0[i] {
                 neighbors_a[i].push(j);
-                neighbors_b[j].push(i);
             }
         }
     }
 
+    maximum_matching(&neighbors_a)
+}
+
+pub fn maximum_matching<const D: usize>(neighbors_a: &[StaticVec<D>; D]) -> bool {
     let mut pair_for_b = [None; D];
     let mut pair_for_a = [0; D];
 

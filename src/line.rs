@@ -37,7 +37,7 @@ where
         })
     }
 
-    /// Returns whether the this line is inferior or equal to the other line
+    /// Returns whether this line is inferior or equal to the other line
     /// and adds symbols to this line if possible.
     pub fn maximize_with(&mut self, other: &Line<C, D>) -> bool {
         for my_index in 0..D {
@@ -45,7 +45,10 @@ where
                 let mine = self.0[my_index];
                 let others = other.0[other_index];
                 if !(mine & others == others && mine != others)
-                    && other.without(other_index) >= self.without(my_index)
+                    && crate::line_superiority::is_inferior_to(
+                        &self.without(my_index),
+                        &other.without(other_index),
+                    )
                 {
                     self.0[my_index] |= others;
 

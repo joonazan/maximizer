@@ -3,10 +3,12 @@
 
 mod bitarray;
 mod line;
+mod line_superiority;
 
 use bitarray::BitArray;
 use itertools::Itertools;
 use line::Line;
+use line_superiority::is_inferior_to;
 use std::collections::{BTreeSet, VecDeque};
 use std::convert::TryInto;
 use std::fs::File;
@@ -121,7 +123,7 @@ where
                     {
                         let mut i = 0;
                         while i < todo.len() {
-                            if todo[i] < new {
+                            if is_inferior_to(&todo[i], &new) {
                                 println!(
                                     "removed from todo: {} < {}",
                                     show_line(&todo[i]),
@@ -134,9 +136,9 @@ where
                         }
                     }
 
-                    let mut write = 0;
+                    let mut written = 0;
                     for j in 0..done.len() {
-                        if done[j] < new {
+                        if is_inferior_to(&done[j], &new) {
                             println!(
                                 "removed from done: {} < {}",
                                 show_line(&done[j]),
@@ -147,11 +149,11 @@ where
                             }
                         } else {
                             // TODO Unnecessary clone here.
-                            done[write] = done[j].clone();
-                            write += 1;
+                            done[written] = done[j].clone();
+                            written += 1;
                         }
                     }
-                    done.truncate(write);
+                    done.truncate(written);
 
                     todo.push_back(new);
                 }

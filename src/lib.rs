@@ -56,54 +56,64 @@ pub fn active_side<const C: usize, const D: usize>(
         let mut i = 0;
         while i < done.len() {
             let mut next_i = i + 1;
-            for p in &perms {
-                'new_lines: for mut new in done[i].combine_with(&p) {
-                    for x in done.iter().chain(&todo).rev() {
-                        if new.maximize_with(x) {
-                            continue 'new_lines;
-                        }
+
+            let mut candidates = vec![];
+            'outer: for p in perms.iter().flat_map(|p| done[i].combine_with(p)) {
+                for c in &candidates {
+                    if *c >= p {
+                        continue 'outer;
                     }
+                }
+                candidates.retain(|c| *c > p);
+                candidates.push(p);
+            }
 
-                    println!("found: {} via {}", show_line(&new), show_line(&line));
-
-                    // Remove lines obsoleted by newly found ones
-                    {
-                        let mut i = 0;
-                        while i < todo.len() {
-                            if is_inferior_to(&todo[i], &new) {
-                                println!(
-                                    "removed from todo: {} < {}",
-                                    show_line(&todo[i]),
-                                    show_line(&new)
-                                );
-                                todo.swap_remove_back(i);
-                            } else {
-                                i += 1;
-                            }
-                        }
+            'new_lines: for mut new in candidates {
+                for x in todo.iter().chain(&done) {
+                    if new.maximize_with(x) {
+                        continue 'new_lines;
                     }
+                }
 
-                    let mut written = 0;
-                    for j in 0..done.len() {
-                        if is_inferior_to(&done[j], &new) {
+                println!("found: {} via {}", show_line(&new), show_line(&line));
+
+                // Remove lines obsoleted by newly found ones
+                {
+                    let mut i = 0;
+                    while i < todo.len() {
+                        if is_inferior_to(&todo[i], &new) {
                             println!(
-                                "removed from done: {} < {}",
-                                show_line(&done[j]),
+                                "removed from todo: {} < {}",
+                                show_line(&todo[i]),
                                 show_line(&new)
                             );
-                            if j < next_i {
-                                next_i -= 1;
-                            }
+                            todo.swap_remove_back(i);
                         } else {
-                            // TODO Unnecessary clone here.
-                            done[written] = done[j].clone();
-                            written += 1;
+                            i += 1;
                         }
                     }
-                    done.truncate(written);
-
-                    todo.push_back(new);
                 }
+
+                let mut written = 0;
+                for j in 0..done.len() {
+                    if is_inferior_to(&done[j], &new) {
+                        println!(
+                            "removed from done: {} < {}",
+                            show_line(&done[j]),
+                            show_line(&new)
+                        );
+                        if j < next_i {
+                            next_i -= 1;
+                        }
+                    } else {
+                        // TODO Unnecessary clone here.
+                        done[written] = done[j].clone();
+                        written += 1;
+                    }
+                }
+                done.truncate(written);
+
+                todo.push_back(new);
             }
             i = next_i;
         }

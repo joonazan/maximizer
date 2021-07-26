@@ -1,11 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use maximizer::line_superiority::{maximum_matching, maximum_matching_simple};
+use maximizer::line_superiority::*;
 
 pub fn maximum_matching_4(c: &mut Criterion) {
     let neighbors: [&[usize]; 4] = [&[0, 2], &[0, 1], &[3, 0], &[0, 3, 2]];
 
-    c.bench_function("Maximum matching 4", |b| {
-        b.iter(|| maximum_matching(black_box(&neighbors)))
+    c.bench_function("Maximum matching push-relabel 4", |b| {
+        b.iter(|| maximum_matching_push_relabel(black_box(&neighbors)))
+    });
+    c.bench_function("Maximum matching Hopcroft-Karp 4", |b| {
+        b.iter(|| maximum_matching_hopcroft_karp(black_box(&neighbors)))
     });
     c.bench_function("Maximum matching simple 4", |b| {
         b.iter(|| maximum_matching_simple(black_box(&neighbors)))
@@ -25,8 +28,11 @@ pub fn maximum_matching_9(c: &mut Criterion) {
         &[0, 1, 2, 3, 7],
     ];
 
-    c.bench_function("Maximum matching 9", |b| {
-        b.iter(|| maximum_matching(black_box(&neighbors)))
+    c.bench_function("Maximum matching push-relabel 9", |b| {
+        b.iter(|| maximum_matching_push_relabel(black_box(&neighbors)))
+    });
+    c.bench_function("Maximum matching Hopcroft-Karp 9", |b| {
+        b.iter(|| maximum_matching_hopcroft_karp(black_box(&neighbors)))
     });
     c.bench_function("Maximum matching simple 9", |b| {
         b.iter(|| maximum_matching_simple(black_box(&neighbors)))

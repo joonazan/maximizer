@@ -45,7 +45,7 @@ pub fn maximum_matching_simple<const D: usize>(neighbors_a: &[&[usize]; D]) -> b
     false
 }
 
-pub fn maximum_matching<const D: usize>(neighbors_a: &[&[usize]; D]) -> bool {
+pub fn maximum_matching_hopcroft_karp<const D: usize>(neighbors_a: &[&[usize]; D]) -> bool {
     let mut pair_for_b = [None; D];
     let mut pair_for_a = [0; D];
 
@@ -138,3 +138,61 @@ enum StackFrame {
     Try(usize),
 }
 use StackFrame::*;
+
+pub fn maximum_matching_push_relabel<const D: usize>(neighbors_a: &[&[usize]; D]) -> bool
+where
+    [(); 2 * D]: Sized,
+{
+    let mut height = [0; 2 * D];
+    let mut excess = [0; 2 * D];
+    let mut todo = VecDeque::new();
+
+    for i in 0..D {
+        excess[i] = 1;
+        todo.push_back(i);
+        excess[D + i] = -1;
+    }
+
+    // All edges represent a possibility for a unit flow
+    let mut neighbors = neighbors_a
+        .iter()
+        .map(|x| x.iter().cloned().map(|x| x + D).collect())
+        .chain((0..D).map(|_| vec![]))
+        .collect::<Vec<Vec<usize>>>();
+
+    while let Some(v) = todo.pop_front() {
+        while excess[v] > 0 {
+            let mut min_height = 4 * D;
+            let mut index = 0;
+            let mut v2 = 0;
+            for (i, &v) in neighbors[v].iter().enumerate() {
+                if height[v] < min_height {
+                    min_height = height[v];
+                    v2 = v;
+                    index = i;
+                }
+            }
+
+            if v < D && min_height > 2 * D {
+                excess[v] = 0;
+                height[v] = 2 * D + 1;
+                break;
+            }
+
+            if height[v] <= min_height {
+                height[v] = min_height + 1;
+            }
+
+            neighbors[v].swap_remove(index);
+            neighbors[v2].push(v);
+
+            excess[v] -= 1;
+            excess[v2] += 1;
+            if excess[v2] == 1 {
+                todo.push_back(v2);
+            }
+        }
+    }
+
+    excess[D..].iter().all(|&x| x == 0)
+}

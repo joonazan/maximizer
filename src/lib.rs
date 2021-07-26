@@ -9,6 +9,7 @@ use bitarray::BitArray;
 use itertools::Itertools;
 use line::Line;
 use line_superiority::is_inferior_to;
+use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::convert::TryInto;
 
@@ -42,7 +43,10 @@ pub fn active_side<const C: usize, const D: usize>(
         .collect();
     let mut done: Vec<Line<C, D>> = vec![];
 
+    let mut useless: HashSet<Line<C, D>> = HashSet::new();
+
     while let Some(line) = todo.pop_front() {
+        dbg!("started new line");
         done.push(line.clone());
 
         let perms: Vec<Line<C, D>> = line
@@ -58,7 +62,12 @@ pub fn active_side<const C: usize, const D: usize>(
             let mut next_i = i + 1;
 
             let mut candidates = vec![];
-            'outer: for p in perms.iter().flat_map(|p| done[i].combine_with(p)) {
+            'outer: for mut p in perms.iter().flat_map(|p| done[i].combine_with(p)) {
+                p.0.sort();
+                if useless.contains(&p) {
+                    continue;
+                }
+
                 for c in &candidates {
                     if *c >= p {
                         continue 'outer;
@@ -68,9 +77,10 @@ pub fn active_side<const C: usize, const D: usize>(
                 candidates.push(p);
             }
 
-            'new_lines: for mut new in candidates {
+            'new_lines: for new in candidates {
                 for x in todo.iter().chain(&done) {
-                    if new.maximize_with(x) {
+                    if *x >= new {
+                        useless.insert(new);
                         continue 'new_lines;
                     }
                 }

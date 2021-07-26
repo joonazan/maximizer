@@ -53,6 +53,7 @@ fn main() {
         3 => active_side::<1, 3>(passive, alphabet),
         4 => active_side::<1, 4>(passive, alphabet),
         5 => active_side::<1, 5>(passive, alphabet),
+        9 => active_side::<1, 9>(passive, alphabet),
         _ => println!("Didn't compile version for degree {}", degree),
     }
 }

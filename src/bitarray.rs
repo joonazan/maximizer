@@ -1,6 +1,9 @@
-use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not};
+use std::{
+    cmp::Ordering,
+    ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not},
+};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Hash)]
 pub struct BitArray<const CELLS: usize>([usize; CELLS]);
 
 pub const fn cells_needed(bits: usize) -> usize {
@@ -79,6 +82,28 @@ impl<const C: usize> BitArray<C> {
     pub fn set(&mut self, index: usize) {
         let width = std::mem::size_of::<usize>() * 8;
         self.0[index / width] |= 1 << (index % width);
+    }
+}
+
+impl<const C: usize> Eq for BitArray<C> {}
+
+impl<const C: usize> PartialOrd for BitArray<C> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<const C: usize> Ord for BitArray<C> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for (a, b) in self.0.iter().zip(other.0) {
+            if *a > b {
+                return Ordering::Greater;
+            }
+            if *a < b {
+                return Ordering::Less;
+            }
+        }
+        Ordering::Equal
     }
 }
 

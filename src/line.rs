@@ -1,7 +1,7 @@
 use crate::bitarray::{zero, BitArray};
 use std::cmp::Ordering;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct Line<const C: usize, const DEGREE: usize>(pub [BitArray<C>; DEGREE]);
 
 impl<const C: usize, const D: usize> Line<C, D>
@@ -81,6 +81,7 @@ impl<const C: usize, const D: usize> Line<C, D> {
     }
 }
 
+impl<const C: usize, const D: usize> Eq for Line<C, D> {}
 impl<const C: usize, const D: usize> PartialEq<Self> for Line<C, D> {
     fn eq(&self, other: &Self) -> bool {
         let mut used = [false; D];

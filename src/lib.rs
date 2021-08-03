@@ -46,7 +46,6 @@ pub fn active_side<const C: usize, const D: usize>(
     let mut useless: HashSet<Line<C, D>> = HashSet::new();
 
     while let Some(line) = todo.pop_front() {
-        dbg!("started new line");
         done.push(line.clone());
 
         let perms: Vec<Line<C, D>> = line
@@ -70,6 +69,7 @@ pub fn active_side<const C: usize, const D: usize>(
 
                 for c in &candidates {
                     if *c >= p {
+                        useless.insert(p);
                         continue 'outer;
                     }
                 }

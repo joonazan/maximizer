@@ -73,7 +73,7 @@ pub fn active_side<const C: usize, const D: usize>(
                         continue 'outer;
                     }
                 }
-                candidates.retain(|c| *c > p);
+                candidates.retain(|c| !(p >= *c));
                 candidates.push(p);
             }
 

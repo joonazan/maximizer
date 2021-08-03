@@ -1,7 +1,7 @@
 use crate::bitarray::{zero, BitArray};
 use std::cmp::Ordering;
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub struct Line<const C: usize, const DEGREE: usize>(pub [BitArray<C>; DEGREE]);
 
 impl<const C: usize, const D: usize> Line<C, D>

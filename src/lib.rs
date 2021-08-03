@@ -43,7 +43,7 @@ pub fn active_side<const C: usize, const D: usize>(
         .collect();
     let mut done: Vec<Line<C, D>> = vec![];
 
-    let mut useless: HashSet<Line<C, D>> = HashSet::new();
+    let mut useless: HashSet<[BitArray<C>; D]> = HashSet::new();
 
     while let Some(line) = todo.pop_front() {
         done.push(line.clone());
@@ -63,13 +63,13 @@ pub fn active_side<const C: usize, const D: usize>(
             let mut candidates = vec![];
             'outer: for mut p in perms.iter().flat_map(|p| done[i].combine_with(p)) {
                 p.0.sort();
-                if useless.contains(&p) {
+                if useless.contains(&p.0) {
                     continue;
                 }
 
                 for c in &candidates {
                     if *c >= p {
-                        useless.insert(p);
+                        useless.insert(p.0);
                         continue 'outer;
                     }
                 }
@@ -80,7 +80,7 @@ pub fn active_side<const C: usize, const D: usize>(
             'new_lines: for new in candidates {
                 for x in todo.iter().chain(&done) {
                     if *x >= new {
-                        useless.insert(new);
+                        useless.insert(new.0);
                         continue 'new_lines;
                     }
                 }

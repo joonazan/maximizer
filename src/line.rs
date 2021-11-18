@@ -1,5 +1,8 @@
 use crate::bitarray::{zero, BitArray};
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    iter::{once, repeat},
+};
 
 #[derive(Clone, Debug, Hash)]
 pub struct Line<const C: usize> {
@@ -7,24 +10,96 @@ pub struct Line<const C: usize> {
     pub infinite: BitArray<C>,
 }
 
-struct Combinations<'a, const C: usize> {
-    a: &'a Line<C>,
-    b: &'a Line<C>,
+struct Matchings {
+    blen: usize,
     available: Vec<bool>,
-    pairs: Vec<(Line<C>, Line<C>)>,
+    matching: Vec<usize>,
 }
 
-impl<const C: usize> Iterator for Combinations<'_, C> {
-    type Item = Line<C>;
+impl Iterator for Matchings {
+    type Item = Vec<usize>;
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        todo!()
+        if self.matching.len() == 0 {
+            return None;
+        }
+        let mut i = self.matching.len() - 1;
+        while self.matching[i] == self.blen {
+            self.matching[i] = 0;
+            if i == 0 {
+                return None;
+            }
+            i -= 1;
+        }
+        self.available[self.matching[i]] = true;
+        self.matching[i] += 1;
+
+        for j in i..self.matching.len() {
+            while !self.available[self.matching[j]] {
+                self.matching[j] += 1;
+            }
+            if self.matching[j] != self.blen {
+                self.available[self.matching[j]] = false;
+            }
+        }
+
+        Some(self.matching.clone())
     }
 }
 
-impl<const C: usize> Line<C> {
+impl<'a, const C: usize> Line<C> {
     /// Generates all combinations of two lines
-    pub fn combinations(&self, other: &Line<C>) -> impl Iterator<Item = Line<C>> {
-        std::iter::once(self.clone())
+    pub fn combinations(&'a self, other: &'a Line<C>) -> impl Iterator<Item = Line<C>> + 'a {
+        let infinite = self.infinite & other.infinite;
+        let other_table = {
+            let mut res = other.finite.clone();
+            res.push(other.infinite);
+            res
+        };
+
+        let first = (0..self.finite.len())
+            .map(|x| x.min(other.finite.len()))
+            .collect::<Vec<_>>();
+
+        once(first.clone())
+            .chain(Matchings {
+                blen: other.finite.len(),
+                available: repeat(false)
+                    .take(self.finite.len())
+                    .chain(repeat(true))
+                    .take(other.finite.len())
+                    .chain(once(true))
+                    .collect(),
+                matching: first,
+            })
+            .flat_map(move |matching: Vec<usize>| {
+                let pairs = matching
+                    .iter()
+                    .enumerate()
+                    .map(|(i, j)| (self.finite[i], other_table[*j]))
+                    .chain(
+                        (0..other.finite.len())
+                            .filter(|o| !matching.contains(o))
+                            .map(|o| (self.infinite, other.finite[o])),
+                    )
+                    .collect::<Vec<_>>();
+                let intersected = pairs.iter().map(|(a, b)| *a & *b).collect::<Vec<_>>();
+                let mut infinite_union = intersected.clone();
+                infinite_union.push(self.infinite | other.infinite);
+                once(Line {
+                    finite: infinite_union,
+                    infinite: infinite.clone(),
+                })
+                .chain((0..pairs.len()).map(move |i| {
+                    let (a, b) = pairs[i];
+                    let mut with_union = intersected.clone();
+                    with_union[i] = a | b;
+                    Line {
+                        finite: with_union,
+                        infinite: infinite.clone(),
+                    }
+                }))
+            })
+            .filter(|x| x.infinite != zero() && x.finite.iter().all(|x| *x != zero()))
     }
 }
 
@@ -158,9 +233,9 @@ fn set_ge<const C: usize>(a: &BitArray<C>, b: &BitArray<C>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bitarray::zero;
     use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::*;
-    use std::convert::TryInto;
 
     impl Arbitrary for Line<1> {
         fn arbitrary(g: &mut Gen) -> Self {
@@ -200,6 +275,17 @@ mod tests {
     #[quickcheck]
     fn eq_self(line: Line<1>) -> bool {
         line == line
+    }
+
+    #[quickcheck]
+    fn extended_eq(line: Line<1>) -> bool {
+        let mut finite_ex = line.finite.clone();
+        finite_ex.push(line.infinite);
+        let extended = Line {
+            finite: finite_ex,
+            infinite: line.infinite,
+        };
+        line == extended && extended == line && line >= extended && extended >= line
     }
 
     #[quickcheck]

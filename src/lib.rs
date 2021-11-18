@@ -37,15 +37,55 @@ pub fn active_side<const C: usize>(passive: Vec<Vec<BitArray<C>>>, alphabet: Vec
 
     let mut useless: HashSet<Vec<BitArray<C>>> = HashSet::new();
 
-    while let Some(line) = todo.pop_front() {
+    'process_todo: while let Some(line) = todo.pop_front() {
+        for x in todo.iter().chain(&done) {
+            if *x >= line {
+                let mut key = line.finite.clone();
+                key.push(line.infinite);
+                useless.insert(key);
+                continue 'process_todo;
+            }
+        }
+
+        println!("found: {}", show_line(&line));
+
+        // Remove lines obsoleted by newly found ones
+        {
+            let mut i = 0;
+            while i < todo.len() {
+                if line >= todo[i] {
+                    println!(
+                        "removed from todo: {} < {}",
+                        show_line(&todo[i]),
+                        show_line(&line)
+                    );
+                    todo.swap_remove_back(i);
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        {
+            let mut i = 0;
+            while i < done.len() {
+                if line >= done[i] {
+                    println!(
+                        "removed from done: {} < {}",
+                        show_line(&done[i]),
+                        show_line(&line)
+                    );
+                    done.swap_remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+        }
+
         done.push(line.clone());
 
-        let mut i = 0;
-        while i < done.len() {
-            let mut next_i = i + 1;
-
+        for d in &done {
             let mut candidates = vec![];
-            'outer: for mut p in done[i].combinations(&line) {
+            'outer: for mut p in d.combinations(&line) {
                 p.finite.sort();
                 let mut key = p.finite.clone();
                 key.push(p.infinite);
@@ -62,58 +102,7 @@ pub fn active_side<const C: usize>(passive: Vec<Vec<BitArray<C>>>, alphabet: Vec
                 candidates.retain(|c| !(p >= *c));
                 candidates.push(p);
             }
-
-            'new_lines: for new in candidates {
-                for x in todo.iter().chain(&done) {
-                    if *x >= new {
-                        let mut key = new.finite.clone();
-                        key.push(new.infinite);
-                        useless.insert(key);
-                        continue 'new_lines;
-                    }
-                }
-
-                println!("found: {} via {}", show_line(&new), show_line(&line));
-
-                // Remove lines obsoleted by newly found ones
-                {
-                    let mut i = 0;
-                    while i < todo.len() {
-                        if new >= todo[i] {
-                            println!(
-                                "removed from todo: {} < {}",
-                                show_line(&todo[i]),
-                                show_line(&new)
-                            );
-                            todo.swap_remove_back(i);
-                        } else {
-                            i += 1;
-                        }
-                    }
-                }
-
-                let mut written = 0;
-                for j in 0..done.len() {
-                    if new >= done[j] {
-                        println!(
-                            "removed from done: {} < {}",
-                            show_line(&done[j]),
-                            show_line(&new)
-                        );
-                        if j < next_i {
-                            next_i -= 1;
-                        }
-                    } else {
-                        // TODO Unnecessary clone here.
-                        done[written] = done[j].clone();
-                        written += 1;
-                    }
-                }
-                done.truncate(written);
-
-                todo.push_back(new);
-            }
-            i = next_i;
+            todo.extend(candidates);
         }
     }
 

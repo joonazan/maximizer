@@ -1,24 +1,12 @@
-#![feature(const_evaluatable_checked)]
-#![feature(const_generics)]
-
 pub mod bitarray;
 mod line;
-pub mod line_superiority;
 
 use bitarray::BitArray;
-use itertools::Itertools;
 use line::Line;
-use line_superiority::is_inferior_to;
 use std::collections::HashSet;
 use std::collections::VecDeque;
-use std::convert::TryInto;
 
-pub fn active_side<const C: usize, const D: usize>(
-    passive: Vec<Vec<BitArray<C>>>,
-    alphabet: Vec<u8>,
-) where
-    [(); D - 1]: Sized,
-{
+pub fn active_side<const C: usize>(passive: Vec<Vec<BitArray<C>>>, alphabet: Vec<u8>) {
     let show_set = |set: &BitArray<C>| {
         String::from_utf8(
             alphabet
@@ -31,45 +19,43 @@ pub fn active_side<const C: usize, const D: usize>(
         .unwrap()
     };
 
-    let show_line = |line: &Line<C, D>| {
-        let mut tmp = line.0.iter().map(show_set).collect::<Vec<_>>();
+    let show_line = |line: &Line<C>| {
+        let mut tmp = line.finite.iter().map(show_set).collect::<Vec<_>>();
         tmp.sort();
-        tmp.join(" ")
+        tmp.push(show_set(&line.infinite));
+        tmp.join(" ") + "*"
     };
 
-    let mut todo: VecDeque<Line<C, D>> = passive
+    let mut todo: VecDeque<Line<C>> = passive
         .into_iter()
-        .map(|line| Line(line.try_into().unwrap()))
+        .map(|mut line| Line {
+            infinite: line.pop().unwrap(),
+            finite: line,
+        })
         .collect();
-    let mut done: Vec<Line<C, D>> = vec![];
+    let mut done: Vec<Line<C>> = vec![];
 
-    let mut useless: HashSet<[BitArray<C>; D]> = HashSet::new();
+    let mut useless: HashSet<Vec<BitArray<C>>> = HashSet::new();
 
     while let Some(line) = todo.pop_front() {
         done.push(line.clone());
-
-        let perms: Vec<Line<C, D>> = line
-            .0
-            .iter()
-            .cloned()
-            .permutations(D)
-            .map(|x| Line(x.try_into().unwrap()))
-            .collect();
 
         let mut i = 0;
         while i < done.len() {
             let mut next_i = i + 1;
 
             let mut candidates = vec![];
-            'outer: for mut p in perms.iter().flat_map(|p| done[i].combine_with(p)) {
-                p.0.sort();
-                if useless.contains(&p.0) {
+            'outer: for mut p in done[i].combinations(&line) {
+                p.finite.sort();
+                let mut key = p.finite.clone();
+                key.push(p.infinite);
+                if useless.contains(&key) {
                     continue;
                 }
 
                 for c in &candidates {
                     if *c >= p {
-                        useless.insert(p.0);
+                        useless.insert(key);
                         continue 'outer;
                     }
                 }
@@ -80,7 +66,9 @@ pub fn active_side<const C: usize, const D: usize>(
             'new_lines: for new in candidates {
                 for x in todo.iter().chain(&done) {
                     if *x >= new {
-                        useless.insert(new.0);
+                        let mut key = new.finite.clone();
+                        key.push(new.infinite);
+                        useless.insert(key);
                         continue 'new_lines;
                     }
                 }
@@ -91,7 +79,7 @@ pub fn active_side<const C: usize, const D: usize>(
                 {
                     let mut i = 0;
                     while i < todo.len() {
-                        if is_inferior_to(&todo[i], &new) {
+                        if new >= todo[i] {
                             println!(
                                 "removed from todo: {} < {}",
                                 show_line(&todo[i]),
@@ -106,7 +94,7 @@ pub fn active_side<const C: usize, const D: usize>(
 
                 let mut written = 0;
                 for j in 0..done.len() {
-                    if is_inferior_to(&done[j], &new) {
+                    if new >= done[j] {
                         println!(
                             "removed from done: {} < {}",
                             show_line(&done[j]),

@@ -89,7 +89,7 @@ pub fn active_side<const C: usize>(passive: Vec<Vec<BitArray<C>>>, alphabet: Vec
                 p.finite.sort();
                 let mut key = p.finite.clone();
                 key.push(p.infinite);
-                if useless.contains(&key) {
+                if useless.contains(&key) || d >= &p || &line >= &p {
                     continue;
                 }
 
